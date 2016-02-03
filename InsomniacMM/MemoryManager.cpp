@@ -1,4 +1,5 @@
 #include "MemoryManager.h"
+#include <iostream>
 
 namespace MemoryManager
 {
@@ -11,6 +12,7 @@ namespace MemoryManager
 
 
   const int MM_POOL_SIZE = 65536;
+  //const int MM_POOL_SIZE = 10;
   char MM_pool[MM_POOL_SIZE];
 
   // Initialize set up any data needed to manage the memory pool
@@ -27,32 +29,27 @@ namespace MemoryManager
   }
 
   // return a pointer inside the memory pool
-  // If no chunk can accommodate aSize call onOutOfMemory()
   void* allocate(int aSize)
   {
     // TODO: IMPLEMENT ME
-    int start_at = findSpace(aSize); // byte in buffer to start at - source from search function
+
+    // will look for space in the buffer, returns a nullptr if no space was found
+    void* startPtr = findSpace(aSize);
 
     // if we can't find space, shout that we're out of memory (for that allocation)
-    if (start_at == -1) {
+    if (startPtr == nullptr) {
       onIllegalOperation("Not enough space!\n- Total Available: %d bytes\n- Requested: %d bytes\nLargest Block: %d\n", freeRemaining(), aSize, largestFree());
     }
 
-    // allocate bytes by setting them to 0x00 from start_at
-    int i = start_at;
-    int block = aSize * 8;
-    for (i = start_at; i < (aSize + start_at); i++) {
-      // initialize to null character
-      MM_pool[i] = 0x00;
+    // prepare the bytes by setting them to 0x00
+    for (int i = 0; i < aSize; i++) {
+      *((char*)startPtr + i) = 0x00;
     }
 
-    // using this value as a terminating value for the buffer
-    // [0x00, 0x00, 0x00, 0x00, -2] <-- indicates end of buffer zone
-    // since I'm not tracking the size of the buffers allocated.
-    MM_pool[i] = -2;
+    // add a terminating character
+    *((char*)startPtr + aSize) = -2;
 
-    // return the address of the allocated buffer
-    return &MM_pool[start_at];
+    return startPtr;
   }
 
   // Free up a chunk previously allocated
@@ -147,36 +144,41 @@ namespace MemoryManager
     return smallest;
   }
 
-  int findSpace(int aSize)
+  // returns address of array to start allocating memory to
+  void* findSpace(int aSize)
   {
-    // look for free space in the buffer, return index
-    int count = 0; // counts consecutive free buffers
-    int idx = 0; // indicates the index in the array
-    int prev = 0; // tracks the previous byte we just checked
-    // used in loop below
-    int iMM = 0, i = 0;
+    char* chunk = MM_pool; // initialize to the beginning of the buffer, and to 1 byte
+    void* start = nullptr;
+    int chunks = 0;
+    int prev = 0;
 
-    for (i = 0; i < MM_POOL_SIZE; i++)
-    {
-      iMM = static_cast<int>(MM_pool[i]);
+    // keep going unless we hit a terminating character, 
+    // or attempt to go beyond the last item in the array
+    while (chunks != aSize && chunk != &MM_pool[MM_POOL_SIZE]) {
+      int chunkInt = static_cast<int>(*chunk);
 
-      // update count if we are on consecutive bytes
-      if (iMM == -1 && prev == -1) {
-        count++;
-      }
-      else {
-        idx = i;
+      //std::cout << "CHUNK: " << chunkInt << std::endl;
+
+      if (chunkInt == -1) {
+        // count only free chunks
+        chunks++;
       }
 
-      if (count == aSize) {
-        return idx;
+      if (chunkInt != prev) {
+        start = chunk;
       }
 
-      prev = iMM;
+      // move to the next chunk
+      chunk += 1;
+      prev = chunkInt;
     }
 
-    // if we find nothing, return -1
-    return -1;
+    // if we didn't find enough bytes, return nullptr
+    if (chunks < aSize) {
+      return nullptr;
+    }
+
+    return start;
   }
 
  }

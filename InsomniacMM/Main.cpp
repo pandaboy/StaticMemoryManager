@@ -20,8 +20,10 @@ int main(void)
   // allocations
   int_pointer = (long *)allocate(sizeof(long));
   std::cout << "Free memory (after long allocation) = " << freeRemaining() << std::endl;
+  
   string_pointer = (char*)allocate(255);
   std::cout << "Free memory (after string allocation) = " << freeRemaining() << std::endl;
+  
   char_pointer = (char*)allocate(sizeof(char));
   std::cout << "Free memory (after char allocation) = " << freeRemaining() << std::endl;
 
@@ -41,12 +43,12 @@ int main(void)
   std::cout << "Smallest free memory chunk = " << smallestFree() << std::endl;
 
   // remove allocations
-  deallocate(int_pointer);
   deallocate(string_pointer);
+  std::cout << "Free memory (after string deallocation) = " << freeRemaining() << std::endl;
   deallocate(char_pointer);
-
-  // update
-  std::cout << "Free memory (after deallocation) = " << freeRemaining() << std::endl;
+  std::cout << "Free memory (after char deallocation) = " << freeRemaining() << std::endl;
+  deallocate(int_pointer);
+  std::cout << "Free memory (after complete deallocation) = " << freeRemaining() << std::endl;
 }
 
 namespace MemoryManager
