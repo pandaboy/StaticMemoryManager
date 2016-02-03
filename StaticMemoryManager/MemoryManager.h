@@ -57,7 +57,7 @@ namespace MemoryManager
 
   // finds available space in the buffer and returns the index to start from, returns -1 if none found
   // now with pointer arithmetic!
-  void* findSpace(int aSize);
+  void* findSpace(unsigned aSize);
 };
 
 

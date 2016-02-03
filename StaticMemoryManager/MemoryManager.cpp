@@ -10,9 +10,7 @@ namespace MemoryManager
   //
   // IMPORTANT IMPORTANT IMPORTANT IMPORTANT IMPORTANT IMPORTANT IMPORTANT IMPORTANT
 
-
   const int MM_POOL_SIZE = 65536;
-  //const int MM_POOL_SIZE = 10;
   char MM_pool[MM_POOL_SIZE];
 
   // Initialize set up any data needed to manage the memory pool
@@ -20,11 +18,12 @@ namespace MemoryManager
   {
     // TODO : IMPLEMENT ME
  
-    // Initialize buffer elements to -1
-    // I'm making an assumption here that the buffer will not be
-    // used to store char's as int's.
-    for (int i = 0; i < MM_POOL_SIZE; i++) {
-      MM_pool[i] = -1; // initialize to -1
+    // Initialize buffer chunks to -1 (0xFFFFFFFFFFFFFFFF),
+    // can't use memset for this based on the requirements for no headers,
+    // so I will simply loop through the pool and initialize the values to -1(0xFFFFFFFFFFFFFFFF),
+    // which I use to indicate a free chunk of memory
+    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
+      MM_pool[i] = -1;
     }
   }
 
@@ -33,12 +32,17 @@ namespace MemoryManager
   {
     // TODO: IMPLEMENT ME
 
-    // will look for space in the buffer, returns a nullptr if no space was found
+    // anything less than 1 is invalid
+    if (aSize < 1) {
+      onIllegalOperation("Invalid size request: %d", 1);
+    }
+
+    // Looks for space in the pool, returns a nullptr if no space was found
     void* startPtr = findSpace(aSize);
 
-    // if we can't find space, shout that we're out of memory (for that allocation)
+    // if we can't find space in the pool, complain
     if (startPtr == nullptr) {
-      onIllegalOperation("Not enough space!\n- Total Available: %d bytes\n- Requested: %d bytes\nLargest Block: %d\n", freeRemaining(), aSize, largestFree());
+      onOutOfMemory();
     }
 
     // prepare the bytes by setting them to 0x00
@@ -56,6 +60,11 @@ namespace MemoryManager
   void deallocate(void* aPointer)
   {
     // TODO: IMPLEMENT ME
+
+    // if aPointer is null, report error
+    if (aPointer == nullptr) {
+      onIllegalOperation("Invalid reference provided: %d", 2);
+    }
 
     // while the derefernced value is not equal to our terminating value,
     // keep clearing
@@ -79,36 +88,39 @@ namespace MemoryManager
   int freeRemaining(void)
   {
     // TODO: IMPLEMENT ME
-    int count = 0;
+    unsigned bytes = 0; // number of 'free' bytes
 
-    for (int i = 0; i < MM_POOL_SIZE; i++) {
+    // search through all the items looking at values
+    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
       if (MM_pool[i] == -1) {
-        count++;
+        bytes++;
       }
     }
 
-    return count;
+    return bytes;
   }
 
   // Will scan the memory pool and return the largest free space remaining
   int largestFree(void)
   {
     // TODO: IMPLEMENT ME
-    int largest = 0, count = 0;
+    unsigned largest = 0;          // starts at Minimum value and adds up
+    unsigned bytes = 0; // number of bytes we've counted in a row
 
-    for (int i = 0; i < MM_POOL_SIZE; i++) {
-      // check if free
+    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
+      // check if 'free', if it is we'll update the bytes
       if (MM_pool[i] == -1) {
         // add to the count
-        count++;
+        bytes++;
       }
-      // if not free, reset the count
+      // if not 'free', reset the count
       else {
-        count = 0;
+        bytes = 0;
       }
 
-      if (count > largest) {
-        largest = count;
+      // if what we have is larger than our current total, top up
+      if (bytes > largest) {
+        largest = bytes;
       }
     }
 
@@ -119,65 +131,69 @@ namespace MemoryManager
   int smallestFree(void)
   {
     // TODO: IMPLEMENT ME
-    int smallest = MM_POOL_SIZE, count = 0;
 
-    for (int i = 0; i < MM_POOL_SIZE; i++) {
-      // check if free
+    unsigned smallest = MM_POOL_SIZE; // start at Maximum pool size, work our way down.
+    unsigned bytes = 0;    // number of bytes
+
+    // check each byte
+    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
+      // check if marked as 'free' && part of a 'free' sequence
       if (MM_pool[i] == -1) {
-        // add to the count
-        count++;
+        bytes++;
       }
-      // if not free, reset the count
+      // if not free, reset the number of bytes to 0
       else {
-        if (count < smallest && count != 0) {
-          smallest = count;
+        // if the number of bytes we have are smaller than
+        // the current smallest value update it
+        if (bytes < smallest && bytes != 0) {
+          smallest = bytes;
         }
 
-        count = 0;
+        bytes = 0;
       }
     }
 
-    if (count < smallest) {
-      smallest = count;
+    // do a final check
+    if (bytes < smallest) {
+      smallest = bytes;
     }
 
     return smallest;
   }
 
   // returns address of array to start allocating memory to
-  void* findSpace(int aSize)
+  void* findSpace(unsigned aSize)
   {
-    char* chunk = MM_pool; // initialize to the beginning of the buffer, and to 1 byte
-    void* start = nullptr;
-    int chunks = 0;
-    int prev = 0;
+    char* byte = MM_pool;   // initialize to the beginning of the buffer, and to 1 byte
+    void* start = nullptr;  // this is our return value
+    unsigned bytes = 0;          // number of bytes we've counted
+    int prev = 0;           // holds our previous byte value
 
     // keep going unless we hit a terminating character, 
     // or attempt to go beyond the last item in the array
-    while (chunks != aSize && chunk != &MM_pool[MM_POOL_SIZE]) {
-      int chunkInt = static_cast<int>(*chunk);
+    while (bytes != aSize && byte != &MM_pool[MM_POOL_SIZE]) {
+      int byteInt = static_cast<int>(*byte);
 
-      //std::cout << "CHUNK: " << chunkInt << std::endl;
-
-      if (chunkInt == -1) {
+      if (byteInt == -1) {
         // count only free chunks
-        chunks++;
+        bytes++;
       }
 
-      if (chunkInt != prev) {
-        start = chunk;
+      if (byteInt != prev) {
+        start = byte;
       }
 
       // move to the next chunk
-      chunk += 1;
-      prev = chunkInt;
+      byte++;
+      prev = byteInt;
     }
 
     // if we didn't find enough bytes, return nullptr
-    if (chunks < aSize) {
+    if (bytes < aSize) {
       return nullptr;
     }
 
+    // otherwise return our starting point in the array
     return start;
   }
 
