@@ -13,7 +13,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{F2626D6B-C814-4BA1-80D3-44AAE90F243D}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>InsomniacMM</RootNamespace>
+    <RootNamespace>StaticMemoryManager</RootNamespace>
     <ProjectName>StaticMemoryManager</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
