@@ -1,5 +1,3 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -15,19 +13,40 @@ int main(void)
 
   long* int_pointer;
   char* string_pointer;
+  char* char_pointer;
 
   std::cout << "Free memory = " << freeRemaining() << std::endl;
 
-  int_pointer = (long *) allocate(sizeof(long));
-  string_pointer = (char*) allocate(255);
+  // allocations
+  int_pointer = (long *)allocate(sizeof(long));
+  std::cout << "Free memory (after long allocation) = " << freeRemaining() << std::endl;
+  string_pointer = (char*)allocate(255);
+  std::cout << "Free memory (after string allocation) = " << freeRemaining() << std::endl;
+  char_pointer = (char*)allocate(sizeof(char));
+  std::cout << "Free memory (after char allocation) = " << freeRemaining() << std::endl;
 
-  //*int_pointer = 0xDEADBEEF;
-  //strcpy(string_pointer, "It was the best of times, it was the worst of times");
+  // assignments
+  *int_pointer = 0xDEADBEEF;
+  strcpy(string_pointer, "It was the best of times, it was the worst of times");
+  *char_pointer = 'b';
 
-  std::cout << "Free memory = " << freeRemaining() << std::endl;
+  // printing
+  std::cout << "Int value: " << *int_pointer << std::endl;
+  std::cout << "String value: " << string_pointer << std::endl;
+  std::cout << "Char value: " << (int)*char_pointer << std::endl;
 
+  // updates
+  std::cout << "Free memory (after assigning values) = " << freeRemaining() << std::endl;
+  std::cout << "Largest free memory chunk = " << largestFree() << std::endl;
+  std::cout << "Smallest free memory chunk = " << smallestFree() << std::endl;
+
+  // remove allocations
   deallocate(int_pointer);
   deallocate(string_pointer);
+  deallocate(char_pointer);
+
+  // update
+  std::cout << "Free memory (after deallocation) = " << freeRemaining() << std::endl;
 }
 
 namespace MemoryManager

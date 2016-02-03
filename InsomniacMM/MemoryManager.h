@@ -55,7 +55,8 @@ namespace MemoryManager
   //   ...
   //   onIllegalOperation("Error in createQueue: %d", errorCode);
 
-
+  // finds available space in the buffer and returns the index to start from, returns -1 if none found
+  int findSpace(int aSize);
 };
 
 
