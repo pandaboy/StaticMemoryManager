@@ -55,9 +55,17 @@ namespace MemoryManager
   //   ...
   //   onIllegalOperation("Error in createQueue: %d", errorCode);
 
-  // finds available space in the buffer and returns the index to start from, returns -1 if none found
-  // now with pointer arithmetic!
-  void* findSpace(unsigned aSize);
+  // returns a pointer to the given address of the pool,
+  // or nullptr if we try to access beyond the edge
+  void *atIndex(unsigned int i = 0);
+
+  // searches for a free chunk of memory from the pool
+  // returns nullptr if none found
+  void* free(int size, unsigned short i = 0);
+
+  // searches for and merges consecutive free chunks of
+  // memory in the pool
+  void merge(unsigned short i = 0);
 };
 
 

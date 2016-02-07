@@ -1,5 +1,6 @@
 #include "MemoryManager.h"
 #include <iostream>
+using namespace std;
 
 namespace MemoryManager
 {
@@ -17,67 +18,207 @@ namespace MemoryManager
   void initializeMemoryManager(void)
   {
     // TODO : IMPLEMENT ME
- 
-    // Initialize buffer chunks to -1 (0xFFFFFFFFFFFFFFFF),
-    // can't use memset for this based on the requirements for no headers,
-    // so I will simply loop through the pool and initialize the values to -1(0xFFFFFFFFFFFFFFFF),
-    // which I use to indicate a free chunk of memory
-    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
-      MM_pool[i] = -1;
+
+    // struct for tracking allocations:
+    // ++++++++++++++++++++++++++++++++++++++++++++++++++++
+    // + 65532 | 0 |                                      +
+    // ++++++++++++++++++++++++++++++++++++++++++++++++++++
+    // we put one at the beginning of each "chunk" of memory that we allocate, it 
+    // stores the size and an indicator of whether or not the allocation is in use.
+    // Using this struct makes it easier to query the chunks, so I define at the
+    // start of any methods that need it.
+    // I could do this (and save about 3bytes on each allocation) by using a short 
+    // for size and a bool for the 'free' parameter, but I won't have the ease of
+    // dereferencing with a pointer to a header*
+    struct header {
+      unsigned short size; // Size of space AFTER header.
+      unsigned short free; // Indicates if the chunk is in use.
+    };
+
+    // Essentially creates the initial chunk, by setting the
+    // size to the MM_POOL_SIZE - the header
+    header *hp = (header *)MM_pool;
+    hp->size = MM_POOL_SIZE - sizeof(header);
+    hp->free = 0; // 0 indicates a free chunk of space
+  }
+
+  // Looks for a free chunk, returns address of free chunk
+  // size: size of chunk requested
+  // i: index of pool to look at
+  void* free(int size, unsigned short i)
+  {
+    // pointer to the allocation,
+    void* resource = nullptr;
+
+    // helpful struct here again.
+    struct header
+    {
+      unsigned short size;
+      unsigned short free;
+    };
+
+    // get the header at index i
+    header *hp = (header *)atIndex(i);
+
+    // if the header is null, we've tried to access beyond the end of the array
+    if (hp != nullptr)
+    {
+      // if it's too small, or in use, check the next block
+      if (hp->size < size || hp->free != 0)
+      {
+        // recursively search for next available chunk
+        // returns nullptr if no chunk found
+        resource = free(size, i + hp->size + sizeof(header));
+      }
+      else
+      {
+        // if the size is adequate and the chunk free,
+        // point the resource pointer to the location just after the header
+        resource = hp + 1;
+      }
     }
+
+    return resource;
   }
 
   // return a pointer inside the memory pool
   void* allocate(int aSize)
   {
     // TODO: IMPLEMENT ME
-
-    // anything less than 1 is invalid
     if (aSize < 1) {
       onIllegalOperation("Invalid size request: %d", 1);
     }
+    
+    // struct again!
+    struct header
+    {
+      unsigned short size;
+      unsigned short free;
+    };
 
-    // Looks for space in the pool, returns a nullptr if no space was found
-    void* startPtr = findSpace(aSize);
+    // recursively search for a resource
+    void* resource = free(aSize);
 
-    // if we can't find space in the pool, complain
-    if (startPtr == nullptr) {
+    // if we got a resource allocation:
+    // - update the header to mark it as in use
+    // - check if we can/should split the resource
+    // this section will be called multiple times after
+    // each recursion call unnecessarily - we
+    if (resource != nullptr)
+    {
+      // make sure the header is up to date.
+      header* hp = (header *)resource - 1;
+
+      // mark the chunk as in use
+      hp->free = 1;
+
+      // Check if we can split this chunk into smaller chunks
+      // - calculate the minimum space we need for a split
+      unsigned short toAllocate = aSize + sizeof(header);
+
+      if (toAllocate < hp->size)
+      {
+        // Create a new header after the resource
+        // the index here will point to where the next header should be located at:
+        // - resource address + number of bytes to use in split
+        header *nhp = (header *)((char *)hp + toAllocate);
+
+        // next we set the information for the new header:
+        // size = original size - size_allocated
+        nhp->size = hp->size - toAllocate;
+        nhp->free = 0;
+
+        // update the original header information
+        hp->size = aSize;
+      }
+    }
+
+    if (resource == nullptr) {
       onOutOfMemory();
     }
 
-    // prepare the bytes by setting them to 0x00
-    for (int i = 0; i < aSize; i++) {
-      *((char*)startPtr + i) = 0x00;
+    return resource;
+  }
+
+  // returns pointer to next free block
+  void merge(unsigned short i)
+  {
+    struct header
+    {
+      unsigned short size;
+      unsigned short free;
+    };
+
+    // left header/chunk
+    header* left = (header *)atIndex(i);
+
+    // calculate right header/chunk index position
+    unsigned int next = i + left->size + sizeof(header);
+    
+    // right header/chunk
+    header* right = (header *)atIndex(next);
+
+    // stop checking if either headers are null
+    if (left == nullptr || right == nullptr)
+    {
+      return;
     }
 
-    // add a terminating character
-    *((char*)startPtr + aSize) = -2;
+    //cout << "i:\t " << i << endl;
+    //cout << "next:\t " << next << endl;
+    //cout << "----------------------\n";
+    
+    // check if this chunk and the one next to it are
+    // both empty - if so merge them
+    if (left->free == 0 && right->free == 0)
+    {
+      // merging involves adding the next chunk size (header + data)
+      // to the current chunk
+      left->size += right->size + sizeof(header);
 
-    return startPtr;
+      // call merge on this chunk again.
+      // - this is to cover situations where:
+      // [Free] -> [Free] -> [Free]
+      //merge(i);
+    }
+    //else
+    //{
+      merge(next);
+    //}
   }
 
   // Free up a chunk previously allocated
   void deallocate(void* aPointer)
   {
     // TODO: IMPLEMENT ME
+    struct header
+    {
+      unsigned short size;
+      unsigned short free;
+    };
 
     // if aPointer is null, report error
-    if (aPointer == nullptr) {
+    if (aPointer == nullptr)
+    {
       onIllegalOperation("Invalid reference provided: %d", 2);
     }
 
-    // while the derefernced value is not equal to our terminating value,
-    // keep clearing
-    while (*(char *)aPointer != -2) {
-      // set the value to null
-      *(char *)aPointer = -1;
-
-      // move to next memory location
-      aPointer = (void *)((char *)aPointer + 1);
+    // if aPointer is outside the bounds of MM_pool, report error
+    // our available space always starts sizeof(header) beyond the start
+    if (aPointer < atIndex(sizeof(header)) || aPointer > atIndex(MM_POOL_SIZE - 1))
+    {
+      onIllegalOperation("Invalid reference provided: %d", 2);
     }
 
-    // clear terminating location as well
-    *(char *)aPointer = -1;
+    // get the header (always sizeof(header) before the resource)
+    header* hp = (header*)aPointer - 1;
+
+    // just mark it as free
+    hp->free = 0;
+
+    // next we call merge on the memory to merge any free areas
+    //cout << "Calling merge\n";
+    merge();
   }
 
   //---
@@ -88,40 +229,61 @@ namespace MemoryManager
   int freeRemaining(void)
   {
     // TODO: IMPLEMENT ME
-    unsigned bytes = 0; // number of 'free' bytes
+    struct header
+    {
+      unsigned short size;
+      unsigned short free;
+    } *hp;
 
-    // search through all the items looking at values
-    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
-      if (MM_pool[i] == -1) {
-        bytes++;
+    // loop through the buffer, incrementing based on header information
+    unsigned int i = 0;
+    unsigned int allocated = 0;
+
+    while (i < MM_POOL_SIZE) {
+      // hp = (header *)((char *)MM_pool + i);
+      hp = (header *)atIndex(i);
+
+      if (hp->free == 1)
+      {
+        allocated += hp->size + sizeof(header);
       }
+      else
+      {
+        allocated += sizeof(header);
+      }
+
+      // bytes to increment by
+      i += hp->size + sizeof(header);
     }
 
-    return bytes;
+    return MM_POOL_SIZE - allocated;
   }
 
   // Will scan the memory pool and return the largest free space remaining
   int largestFree(void)
   {
     // TODO: IMPLEMENT ME
-    unsigned largest = 0;          // starts at Minimum value and adds up
-    unsigned bytes = 0; // number of bytes we've counted in a row
+    struct header
+    {
+      unsigned short size;
+      unsigned short free;
+    } *hp;
 
-    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
-      // check if 'free', if it is we'll update the bytes
-      if (MM_pool[i] == -1) {
-        // add to the count
-        bytes++;
-      }
-      // if not 'free', reset the count
-      else {
-        bytes = 0;
+    // loop through the buffer, incrementing based on header information
+    unsigned int i = 0;
+    unsigned int largest = 0;
+
+    while (i < MM_POOL_SIZE) {
+      //hp = (header *)((char *)MM_pool + i);
+      hp = (header *)atIndex(i);
+
+      if (hp->free == 0 && hp->size >= largest)
+      {
+        largest = hp->size;
       }
 
-      // if what we have is larger than our current total, top up
-      if (bytes > largest) {
-        largest = bytes;
-      }
+      // bytes to increment by
+      i += hp->size + sizeof(header);
     }
 
     return largest;
@@ -131,70 +293,50 @@ namespace MemoryManager
   int smallestFree(void)
   {
     // TODO: IMPLEMENT ME
+    struct header
+    {
+      unsigned short size;
+      unsigned short free;
+    } *hp;
 
-    unsigned smallest = MM_POOL_SIZE; // start at Maximum pool size, work our way down.
-    unsigned bytes = 0;    // number of bytes
+    // loop through the buffer, incrementing based on header information
+    unsigned int i = 0;
+    unsigned int smallest = MM_POOL_SIZE;
 
-    // check each byte
-    for (unsigned i = 0; i < MM_POOL_SIZE; i++) {
-      // check if marked as 'free' && part of a 'free' sequence
-      if (MM_pool[i] == -1) {
-        bytes++;
+    while (i < MM_POOL_SIZE) {
+      //hp = (header *)((char *)MM_pool + i);
+      hp = (header *)atIndex(i);
+
+      if (hp->free == 0 && hp->size < smallest)
+      {
+        smallest = hp->size;
       }
-      // if not free, reset the number of bytes to 0
-      else {
-        // if the number of bytes we have are smaller than
-        // the current smallest value update it
-        if (bytes < smallest && bytes != 0) {
-          smallest = bytes;
-        }
 
-        bytes = 0;
-      }
+      // bytes to increment by to get to next chunk
+      i += hp->size + sizeof(header);
     }
 
-    // do a final check
-    if (bytes < smallest) {
-      smallest = bytes;
+    // check if we didn't find any free space
+    if (smallest == MM_POOL_SIZE)
+    {
+      smallest = 0;
     }
 
     return smallest;
   }
 
-  // returns address of array to start allocating memory to
-  void* findSpace(unsigned aSize)
+  // returns a generic pointer to buffer[i]
+  void *atIndex(unsigned int i)
   {
-    char* byte = MM_pool;   // initialize to the beginning of the buffer, and to 1 byte
-    void* start = nullptr;  // this is our return value
-    unsigned bytes = 0;          // number of bytes we've counted
-    int prev = 0;           // holds our previous byte value
-
-    // keep going unless we hit a terminating character, 
-    // or attempt to go beyond the last item in the array
-    while (bytes != aSize && byte != &MM_pool[MM_POOL_SIZE]) {
-      int byteInt = static_cast<int>(*byte);
-
-      if (byteInt == -1) {
-        // count only free chunks
-        bytes++;
-      }
-
-      if (byteInt != prev) {
-        start = byte;
-      }
-
-      // move to the next chunk
-      byte++;
-      prev = byteInt;
-    }
-
-    // if we didn't find enough bytes, return nullptr
-    if (bytes < aSize) {
+    // if we try to access beyond the size of the array,
+    // return nullptr
+    if (i >= MM_POOL_SIZE)
+    {
       return nullptr;
     }
 
-    // otherwise return our starting point in the array
-    return start;
+    // return MM_pool + i;
+    return ((char *)MM_pool + i);
   }
 
  }
