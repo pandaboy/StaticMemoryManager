@@ -1,6 +1,4 @@
 #include "MemoryManager.h"
-#include <iostream>
-using namespace std;
 
 namespace MemoryManager
 {
@@ -163,10 +161,6 @@ namespace MemoryManager
     {
       return;
     }
-
-    //cout << "i:\t " << i << endl;
-    //cout << "next:\t " << next << endl;
-    //cout << "----------------------\n";
     
     // check if this chunk and the one next to it are
     // both empty - if so merge them
@@ -179,12 +173,12 @@ namespace MemoryManager
       // call merge on this chunk again.
       // - this is to cover situations where:
       // [Free] -> [Free] -> [Free]
-      //merge(i);
+      merge(i);
     }
-    //else
-    //{
+    else
+    {
       merge(next);
-    //}
+    }
   }
 
   // Free up a chunk previously allocated
@@ -217,7 +211,6 @@ namespace MemoryManager
     hp->free = 0;
 
     // next we call merge on the memory to merge any free areas
-    //cout << "Calling merge\n";
     merge();
   }
 
@@ -240,7 +233,6 @@ namespace MemoryManager
     unsigned int allocated = 0;
 
     while (i < MM_POOL_SIZE) {
-      // hp = (header *)((char *)MM_pool + i);
       hp = (header *)atIndex(i);
 
       if (hp->free == 1)
@@ -274,7 +266,6 @@ namespace MemoryManager
     unsigned int largest = 0;
 
     while (i < MM_POOL_SIZE) {
-      //hp = (header *)((char *)MM_pool + i);
       hp = (header *)atIndex(i);
 
       if (hp->free == 0 && hp->size >= largest)
@@ -304,7 +295,6 @@ namespace MemoryManager
     unsigned int smallest = MM_POOL_SIZE;
 
     while (i < MM_POOL_SIZE) {
-      //hp = (header *)((char *)MM_pool + i);
       hp = (header *)atIndex(i);
 
       if (hp->free == 0 && hp->size < smallest)
