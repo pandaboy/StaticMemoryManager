@@ -49,23 +49,13 @@ namespace MemoryManager
 
   // If the caller makes any illegal request your code should call this 
   // provided failure function (which will not return):
-  void onIllegalOperation(const char* fmt,...);
+  void onIllegalOperation(const char* fmt, ...);
   // eg:
   //   int errorCode;
   //   ...
   //   onIllegalOperation("Error in createQueue: %d", errorCode);
 
-  // returns a pointer to the given address of the pool,
-  // or nullptr if we try to access beyond the edge
-  void *atIndex(unsigned int i = 0);
 
-  // searches for a free chunk of memory from the pool
-  // returns nullptr if none found
-  void* free(int size, unsigned short i = 0);
-
-  // searches for and merges consecutive free chunks of
-  // memory in the pool
-  void merge(unsigned short i = 0);
 };
 
 
