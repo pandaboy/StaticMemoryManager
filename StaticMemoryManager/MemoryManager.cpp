@@ -117,22 +117,6 @@ namespace MemoryManager
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++
     // + 65532 | 0 |                                      +
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++
-    // We put one at the beginning of each "chunk" of memory that we allocate, it 
-    // stores the size and an indicator of whether or not the allocation is in use.
-    // Using this struct makes it easier to query the chunks, so I define it at the
-    // start of any methods that need it.
-    // I could improve on this (and save about 3bytes on each allocation) by using a short 
-    // for size and a bool for the 'free' parameter outside of the struct (due to issues
-    // with padding in structs), but I won't have the ease of dereferencing with a 
-    // pointer to a header*
-
-    // NOTE:
-    // I use an unsigned short for header.size because of MM_POOL_SIZE,
-    // since the maximum value I can store in a short is 65,535, and at least 4 bytes
-    // will always be in use for the first header, I only store upto 65,531 in header.size
-    // I could use a bool for free, but I'd just waste 3bytes due to padding so I left this
-    // as a short. I had originally had header.free as an index to the next chunk
-    // of memory (as header.index) but now I just use it to indicate free(0) or in use(1)
     struct header {
       unsigned short size; // Size of space AFTER header.
       unsigned short free; // Indicates if the chunk is in use.
